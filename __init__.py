@@ -8,6 +8,7 @@ from socketIO_client import SocketIO
 from .models import *
 from .response import TelepatResponse
 from .db import TelepatDB
+from .transportnotification import *
 
 
 class TelepatError(Exception):
@@ -28,6 +29,8 @@ class Telepat(object):
         self.remote_url = remote_url
         self.sockets_url = sockets_url
 
+        self.on_update_context = None
+
         self.db = TelepatDB()
 
     def _start_ws(self):
@@ -38,6 +41,27 @@ class Telepat(object):
             self.token_event.set()
 
         def on_socket_message(*args):
+            patch_data = args[0]
+            if isinstance(patch_data, bytes):
+                return
+            patches = patch_data["data"]
+
+            for ndict in patches["new"]:
+                pass
+
+            for ndict in patches["updated"]:
+                notification = TelepatTransportNotification()
+                notification.notification_type = NOTIFICATION_TYPE_UPDATED
+                notification.path = ndict["path"]
+                notification.value = ndict["value"]
+
+                context = self.context_with_identifier(ndict["subscription"])
+                if context:
+                    self._process_notification(notification)
+                    continue
+                else:
+                    print("Could not found context with id {0}".format(ndict["subscription"]))
+
             print("Received ws message: {0}".format(args[0]))
 
         self.socketIO = SocketIO(self.sockets_url, 80)
@@ -66,6 +90,17 @@ class Telepat(object):
 
     def _post(self, endpoint, parameters, headers):
         return requests.post(self._url(endpoint), data=json.dumps(parameters), headers=self._headers_with_headers(headers))
+
+    def _process_notification(self, notification):
+        if notification.notification_type == NOTIFICATION_TYPE_UPDATED:
+            path_components = notification.path.split("/")
+            object_id = path_components[1]
+            property_name = path_components[2]
+            updated_context = self._mServerContexts[object_id]
+            setattr(updated_context, property_name, notification.value)
+            print("Calling on_update_context: {0}".format(self.on_update_context))
+            if self.on_update_context:
+                self.on_update_context(updated_context, notification)
 
     @property
     def api_key(self):
@@ -98,6 +133,12 @@ class Telepat(object):
 
     def context_map(self):
         return self._mServerContexts
+
+    def context_with_identifier(self, identifier):
+        for ctx_id in self._mServerContexts:
+            if self._mServerContexts[ctx_id].context_identifier() == identifier:
+                return self._mServerContexts[ctx_id]
+        return None
 
     def register_device(self, update=False):
         if self.socketIO:

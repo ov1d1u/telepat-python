@@ -44,6 +44,7 @@ class TelepatAppSchema(TelepatBaseObject):
 class TelepatContext(TelepatBaseObject):
     name = StringProperty()
     id = StringProperty()
+    application_id = StringProperty()
     state = IntegerProperty()
     meta = DictProperty()
 
@@ -82,3 +83,6 @@ class TelepatContext(TelepatBaseObject):
     @object_id.setter
     def object_id(self, value):
         self.id = value
+
+    def context_identifier(self):
+        return "blg:{0}:context".format(self.application_id)
