@@ -29,6 +29,8 @@ class Telepat(object):
         self.remote_url = remote_url
         self.sockets_url = sockets_url
 
+        # Callbacks
+        self.on_add_context = None
         self.on_update_context = None
 
         self.db = TelepatDB()
@@ -44,16 +46,42 @@ class Telepat(object):
             patch_data = args[0]
             if isinstance(patch_data, bytes):
                 return
+            if not "data" in patch_data:
+                return
+
             patches = patch_data["data"]
 
             for ndict in patches["new"]:
-                pass
+                notification = TelepatTransportNotification()
+                notification.notification_type = NOTIFICATION_TYPE_ADDED
+                notification.value = ndict["value"]
+                notification.subscription = ndict["subscription"]
+                notification.guid = ndict["guid"]
+
+                context = self.context_with_identifier(ndict["subscription"])
+                if context:
+                    self._process_notification(notification)
+                    continue
+
 
             for ndict in patches["updated"]:
                 notification = TelepatTransportNotification()
                 notification.notification_type = NOTIFICATION_TYPE_UPDATED
                 notification.path = ndict["path"]
                 notification.value = ndict["value"]
+
+                context = self.context_with_identifier(ndict["subscription"])
+                if context:
+                    self._process_notification(notification)
+                    continue
+                else:
+                    print("Could not found context with id {0}".format(ndict["subscription"]))
+
+            for ndict in patches["deleted"]:
+                notification = TelepatTransportNotification()
+                notification.notification_type = NOTIFICATION_TYPE_DELETED
+                notification.path = ndict["path"]
+                notification.value = None
 
                 context = self.context_with_identifier(ndict["subscription"])
                 if context:
@@ -92,7 +120,13 @@ class Telepat(object):
         return requests.post(self._url(endpoint), data=json.dumps(parameters), headers=self._headers_with_headers(headers))
 
     def _process_notification(self, notification):
-        if notification.notification_type == NOTIFICATION_TYPE_UPDATED:
+        if notification.notification_type == NOTIFICATION_TYPE_ADDED:
+            context = TelepatContext(notification.value)
+            self._mServerContexts[context.id] = context
+            if self.on_add_context:
+                self.on_add_context(context, notification)
+
+        elif notification.notification_type == NOTIFICATION_TYPE_UPDATED:
             path_components = notification.path.split("/")
             object_id = path_components[1]
             property_name = path_components[2]
@@ -101,6 +135,9 @@ class Telepat(object):
             print("Calling on_update_context: {0}".format(self.on_update_context))
             if self.on_update_context:
                 self.on_update_context(updated_context, notification)
+
+        elif notification.notification_type == NOTIFICATION_TYPE_DELETED:
+            pass
 
     @property
     def api_key(self):
@@ -183,7 +220,8 @@ class Telepat(object):
         return response
 
     def get_apps(self):
-        return self._get("/admin/apps", {}, {})
+        response = self._get("/admin/apps", {}, {})
+        return TelepatResponse(response)
 
     def get_schema(self):
         response = self._get("/admin/schema/all", {}, {})

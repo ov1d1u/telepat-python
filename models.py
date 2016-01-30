@@ -37,8 +37,26 @@ class TelepatBaseObject(JsonObject):
         return patch
 
 
+class TelepatSchemaProperty(TelepatBaseObject):
+    type = StringProperty()
+
+
 class TelepatAppSchema(TelepatBaseObject):
-    pass
+    write_acl = IntegerProperty()
+    read_acl = IntegerProperty()
+    meta_read_acl = IntegerProperty()
+    properties = DictProperty(TelepatSchemaProperty)
+
+
+class TelepatApplication(TelepatBaseObject):
+    admins = ListProperty(str)
+    id = StringProperty()
+    from_email = StringProperty()
+    password_reset = DictProperty(str)
+    name = StringProperty()
+    email_confirmation = BooleanProperty()
+    keys = ListProperty(str)
+    schema = DictProperty(TelepatAppSchema)
 
 
 class TelepatContext(TelepatBaseObject):
