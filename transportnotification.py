@@ -9,7 +9,7 @@ class TelepatTransportNotification:
 	subscription = ""
 	guid = ""
 
-	def __init__(self, notification_type=None, path=None, value=None, subscription=None, guid=None):
+	def __init__(self, notification_type=None, path=None, value=None):
 		self.notification_type = notification_type
 		self.value = value
 		self.path = path

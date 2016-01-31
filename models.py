@@ -4,6 +4,7 @@ from jsonobject import *
 class TelepatBaseObject(JsonObject):
     object_id = StringProperty()
     context = None
+    channel = None
     model = ""
 
     def patch_against(self, updated_obj):
@@ -104,3 +105,12 @@ class TelepatContext(TelepatBaseObject):
 
     def context_identifier(self):
         return "blg:{0}:context".format(self.application_id)
+
+
+class TelepatUser(TelepatBaseObject):
+    id = StringProperty()
+    type = StringProperty()
+    username = StringProperty()
+    password = StringProperty()
+    devices = ListProperty(str)
+    is_admin = BooleanProperty()

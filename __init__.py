@@ -1,14 +1,14 @@
 import threading
-import requests
 import uuid
 import platform
-import json
 import hashlib
 from socketIO_client import SocketIO
 from .models import *
+from .channel import *
 from .response import TelepatResponse
 from .db import TelepatDB
 from .transportnotification import *
+from telepat import httpmanager
 
 
 class TelepatError(Exception):
@@ -17,13 +17,9 @@ class TelepatError(Exception):
 
 class Telepat(object):
     def __init__(self, remote_url, sockets_url):
-        self.device_id = ""
         self.token = ""
-        self.bearer = ""
-        self._app_id = ""
-        self._api_key = ""
-        self._remote_url = ""
         self._mServerContexts = {}
+        self._subscriptions = {}
         self.socketIO = None
 
         self.remote_url = remote_url
@@ -60,7 +56,7 @@ class Telepat(object):
 
                 context = self.context_with_identifier(ndict["subscription"])
                 if context:
-                    self._process_notification(notification)
+                    self.process_notification(notification)
                     continue
 
 
@@ -72,7 +68,7 @@ class Telepat(object):
 
                 context = self.context_with_identifier(ndict["subscription"])
                 if context:
-                    self._process_notification(notification)
+                    self.process_notification(notification)
                     continue
                 else:
                     print("Could not found context with id {0}".format(ndict["subscription"]))
@@ -85,7 +81,7 @@ class Telepat(object):
 
                 context = self.context_with_identifier(ndict["subscription"])
                 if context:
-                    self._process_notification(notification)
+                    self.process_notification(notification)
                     continue
                 else:
                     print("Could not found context with id {0}".format(ndict["subscription"]))
@@ -97,29 +93,7 @@ class Telepat(object):
         self.socketIO.on('welcome', on_socket_welcome)
         self.socketIO.wait()
 
-    def _headers_with_headers(self, headers):
-        new_headers = {}
-        new_headers["Content-Type"] = "application/json"
-        new_headers["X-BLGREQ-UDID"] = self.device_id
-        new_headers["X-BLGREQ-SIGN"] = self.api_key
-        new_headers["X-BLGREQ-APPID"] = self.app_id
-        if self.bearer:
-            new_headers["Authorization"] = "Bearer {0}".format(self.bearer)
-        if headers:
-            return dict(list(new_headers.items()) + list(headers.items()))
-        else:
-            return new_headers
-
-    def _url(self, endpoint):
-        return "{0}{1}".format(self.remote_url, endpoint)
-
-    def _get(self, endpoint, parameters, headers):
-        return requests.get(self._url(endpoint), params=parameters, headers=self._headers_with_headers(headers))
-
-    def _post(self, endpoint, parameters, headers):
-        return requests.post(self._url(endpoint), data=json.dumps(parameters), headers=self._headers_with_headers(headers))
-
-    def _process_notification(self, notification):
+    def process_notification(self, notification):
         if notification.notification_type == NOTIFICATION_TYPE_ADDED:
             context = TelepatContext(notification.value)
             self._mServerContexts[context.id] = context
@@ -141,19 +115,19 @@ class Telepat(object):
 
     @property
     def api_key(self):
-        return self._api_key
+        return httpmanager.api_key
 
     @api_key.setter
     def api_key(self, value):
-        self._api_key = hashlib.sha256(value.encode()).hexdigest()
+        httpmanager.api_key = hashlib.sha256(value.encode()).hexdigest()
         
     @property
     def app_id(self):
-        return self._app_id
+        return httpmanager.app_id
         
     @app_id.setter
     def app_id(self, value):
-        self._app_id = value
+        httpmanager.app_id = value
         device_id_key = "device_id_{0}".format(self.app_id)
         if self.db.get_operations_data(device_id_key):
             self.device_id = self.db.get_operations_data(device_id_key)
@@ -162,11 +136,19 @@ class Telepat(object):
 
     @property
     def remote_url(self):
-        return self._remote_url
+        return httpmanager.remote_url
 
     @remote_url.setter
     def remote_url(self, value):
-        self._remote_url = value[:-1] if value.endswith("/") else value
+        httpmanager.remote_url = value[:-1] if value.endswith("/") else value
+
+    @property
+    def device_id(self):
+        return httpmanager.device_id
+
+    @device_id.setter
+    def device_id(self, value):
+        httpmanager.device_id = value
 
     def context_map(self):
         return self._mServerContexts
@@ -176,6 +158,22 @@ class Telepat(object):
             if self._mServerContexts[ctx_id].context_identifier() == identifier:
                 return self._mServerContexts[ctx_id]
         return None
+
+    def register_subscription(self, channel):
+        self._subscriptions[channel.subscription_identifier] = channel
+
+    def unregister_subscription(self, channel):
+        del self._subscriptions[channel.subscription_identifier]
+
+    def subscribe(self, context, model_name, object_type):
+        channel = TelepatChannel(self, model_name, context)
+        channel.object_type = object_type
+        subscribe_response = channel.subscribe()
+        return (channel, subscribe_response)
+
+    def remove_subscription(self, channel):
+        response = channel.unsubscribe()
+        return TelepatResponse(response)
 
     def register_device(self, update=False):
         if self.socketIO:
@@ -200,7 +198,7 @@ class Telepat(object):
             "token": self.token,
             "active": 1
         }
-        response = self._post("/device/register", params, {})
+        response = httpmanager.post("/device/register", params, {})
         if response.status_code == 200:
             response_json = response.json()
             if "identifier" in response_json["content"]:
@@ -214,21 +212,21 @@ class Telepat(object):
             "email": username,
             "password": password
         }
-        response = self._post("/admin/login", params, {})
+        response = httpmanager.post("/admin/login", params, {})
         if response.status_code == 200:
-            self.bearer = response.json()["content"]["token"]
+            httpmanager.bearer = response.json()["content"]["token"]
         return response
 
     def get_apps(self):
-        response = self._get("/admin/apps", {}, {})
+        response = httpmanager.get("/admin/apps", {}, {})
         return TelepatResponse(response)
 
     def get_schema(self):
-        response = self._get("/admin/schema/all", {}, {})
+        response = httpmanager.get("/admin/schema/all", {}, {})
         return TelepatResponse(response)
 
     def get_all(self):
-        response = self._get("/admin/contexts", {}, {})
+        response = httpmanager.get("/admin/contexts", {}, {})
         contexts_response = TelepatResponse(response)
         for context in contexts_response.getObjectOfType(TelepatContext):
             self._mServerContexts[context.id] = context
@@ -236,7 +234,7 @@ class Telepat(object):
 
     def update_context(self, updated_context):
         context = self.context_map()[updated_context.id]
-        return TelepatResponse(self._post("/admin/context/update", context.patch_against(updated_context), {}))
+        return TelepatResponse(httpmanager.post("/admin/context/update", context.patch_against(updated_context), {}))
         
     def disconnect(self):
         if self.socketIO:
