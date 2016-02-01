@@ -54,7 +54,7 @@ class Telepat(object):
                 notification.subscription = ndict["subscription"]
                 notification.guid = ndict["guid"]
 
-                context = self.context_with_identifier(ndict["subscription"])
+                context = self.channel_with_subscription(ndict["subscription"])
                 if context:
                     self.process_notification(notification)
                     continue
@@ -66,12 +66,12 @@ class Telepat(object):
                 notification.path = ndict["path"]
                 notification.value = ndict["value"]
 
-                context = self.context_with_identifier(ndict["subscription"])
+                context = self.channel_with_subscription(ndict["subscription"])
                 if context:
                     self.process_notification(notification)
                     continue
                 else:
-                    print("Could not found context with id {0}".format(ndict["subscription"]))
+                    print("Could not find context with id {0}".format(ndict["subscription"]))
 
             for ndict in patches["deleted"]:
                 notification = TelepatTransportNotification()
@@ -79,12 +79,12 @@ class Telepat(object):
                 notification.path = ndict["path"]
                 notification.value = None
 
-                context = self.context_with_identifier(ndict["subscription"])
+                context = self.channel_with_subscription(ndict["subscription"])
                 if context:
                     self.process_notification(notification)
                     continue
                 else:
-                    print("Could not found context with id {0}".format(ndict["subscription"]))
+                    print("Could not find context with id {0}".format(ndict["subscription"]))
 
             print("Received ws message: {0}".format(args[0]))
 
@@ -160,10 +160,13 @@ class Telepat(object):
         return None
 
     def register_subscription(self, channel):
-        self._subscriptions[channel.subscription_identifier] = channel
+        self._subscriptions[channel.subscription_identifier()] = channel
 
     def unregister_subscription(self, channel):
-        del self._subscriptions[channel.subscription_identifier]
+        del self._subscriptions[channel.subscription_identifier()]
+
+    def channel_with_subscription(self, subscription_id):
+        return self._subscriptions[subscription_id]
 
     def subscribe(self, context, model_name, object_type):
         channel = TelepatChannel(self, model_name, context)

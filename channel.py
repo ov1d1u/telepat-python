@@ -1,3 +1,5 @@
+import uuid
+import json
 from .models import TelepatContext, TelepatUser, TelepatBaseObject
 from telepat import httpmanager
 from .response import TelepatResponse
@@ -62,6 +64,24 @@ class TelepatChannel:
             }
 
         return params
+
+    def patch(self, obj):
+        old_object = self.object_with_id(obj.id)
+        assert old_object
+        patches = old_object.patch_against(obj)
+        patch = {
+            "model": self.model_name,
+            "context": self.context.id,
+            "id": obj.id,
+            "patches": patches
+        }
+        obj.uuid = str(uuid.uuid4())
+        response = httpmanager.post("/object/update", patch, {})
+        patch_response = TelepatResponse(response)
+        return (obj.uuid, patch_response)
+
+    def object_with_id(self, object_id):
+        return self.telepat_instance.db.get_object(object_id, self.subscription_identifier())
 
     def persist_object(self, obj):
         self.telepat_instance.db.persist_object(obj, self.subscription_identifier())

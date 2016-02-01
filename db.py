@@ -23,7 +23,7 @@ class TelepatDB:
 
     def get_object(self, object_id, channel_id):
         object_key = self.keyForObject(object_id, channel_id)
-        return self.db[object_key] if object_id in self.db else None
+        return self.db[object_key] if object_key in self.db else None
 
     def objects_in_channel(self, channel_id):
         return self.db[channel_id] if channel_id in self.db else []
@@ -37,7 +37,7 @@ class TelepatDB:
         return self.db[op_key] if op_key in self.db else None
 
     def persist_object(self, obj, channel_id):
-        self.db[self.keyForObject(obj.object_id, channel_id)] = obj
+        self.db[self.keyForObject(obj.id, channel_id)] = obj
         self.db.sync()
 
     def persist_objects(self, objects, channel_id):
