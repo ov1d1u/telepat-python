@@ -54,10 +54,13 @@ class Telepat(object):
                 notification.subscription = ndict["subscription"]
                 notification.guid = ndict["guid"]
 
-                context = self.channel_with_subscription(ndict["subscription"])
+                context = self.context_with_identifier(ndict["subscription"])
                 if context:
                     self.process_notification(notification)
                     continue
+
+                channel = self.channel_with_subscription(ndict["subscription"])
+                channel.process_notification(notification)
 
 
             for ndict in patches["updated"]:
@@ -66,12 +69,13 @@ class Telepat(object):
                 notification.path = ndict["path"]
                 notification.value = ndict["value"]
 
-                context = self.channel_with_subscription(ndict["subscription"])
+                context = self.context_with_identifier(ndict["subscription"])
                 if context:
                     self.process_notification(notification)
                     continue
-                else:
-                    print("Could not find context with id {0}".format(ndict["subscription"]))
+                
+                channel = self.channel_with_subscription(ndict["subscription"])
+                channel.process_notification(notification)
 
             for ndict in patches["deleted"]:
                 notification = TelepatTransportNotification()
@@ -79,12 +83,13 @@ class Telepat(object):
                 notification.path = ndict["path"]
                 notification.value = None
 
-                context = self.channel_with_subscription(ndict["subscription"])
+                context = self.context_with_identifier(ndict["subscription"])
                 if context:
                     self.process_notification(notification)
                     continue
-                else:
-                    print("Could not find context with id {0}".format(ndict["subscription"]))
+                
+                channel = self.channel_with_subscription(ndict["subscription"])
+                channel.process_notification(notification)
 
             print("Received ws message: {0}".format(args[0]))
 
