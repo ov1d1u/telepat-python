@@ -7,6 +7,20 @@ class TelepatBaseObject(JsonObject):
     channel = None
     type = ""
 
+    def __setattr__(self, name, value):
+        if name == "channel":
+            self.__dict__[name] = value
+        else:
+            super(TelepatBaseObject, self).__setattr__(name, value)
+
+    def __getattr__(self, name):
+        if name == "channel":
+            return self.__dict__[name]
+        else:
+            if hasattr(super(TelepatBaseObject, self), "__getattr__"):
+                return super(TelepatBaseObject, self).__getattr__(name)
+            raise AttributeError
+
     def patch_against(self, updated_obj):
         if not isinstance(updated_obj, TelepatBaseObject):
             raise TelepatError("The received object is not the same as the current one")
@@ -44,6 +58,17 @@ class TelepatApplication(TelepatBaseObject):
     email_confirmation = BooleanProperty()
     keys = ListProperty(str)
     schema = DictProperty(TelepatAppSchema)
+
+
+class TelepatUser(TelepatBaseObject):
+    username = StringProperty()
+    devices = ListProperty(str)
+    confirmationHash = StringProperty()
+    confirmed = BooleanProperty()
+    email = StringProperty()
+    friends = ListProperty(str)
+    name = StringProperty()
+    type = StringProperty()
 
 
 class TelepatContext(TelepatBaseObject):
