@@ -41,8 +41,8 @@ class TelepatChannel:
 
     def unsubscribe(self):
         response = httpmanager.post("/object/unsubscribe", self.params_for_subscription(), {})
-        unsubscribe_response = TelepatResponse(response)
-        if unsubscribe_response.status == 200:
+        unsubscribe_response = response
+        if unsubscribe_response.status_code == 200:
             self.telepat_instance.unregister_subscription(self)
         return unsubscribe_response
 
@@ -105,7 +105,7 @@ class TelepatChannel:
                 setattr(updated_object, property_name, notification.value)
                 updated_object.channel = self
                 if self.on_update_object:
-                    self.on_update_object(updated_context, notification)
+                    self.on_update_object(updated_object, notification)
 
                 self.persist_object(updated_object)
 
