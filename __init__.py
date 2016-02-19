@@ -233,6 +233,10 @@ class Telepat(object):
         response = httpmanager.get("/admin/schema/all", {}, {})
         return TelepatResponse(response)
 
+    def get_users(self):
+        response = httpmanager.post("/admin/user/all", {}, {})
+        return TelepatResponse(response)
+
     def get_all(self):
         response = httpmanager.get("/admin/contexts", {}, {})
         contexts_response = TelepatResponse(response)
